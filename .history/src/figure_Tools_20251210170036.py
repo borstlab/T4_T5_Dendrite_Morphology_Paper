@@ -287,7 +287,7 @@ def point_value_PMF_1darray(
 
     return ax
 
-def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs = dict(), point_kwargs = dict(), fill_kwargs = dict(), legend_kwargs = dict()):
+def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_kwargs, fill_kwargs, legend_kwargs):
     
     formula = f'{DV} ~ C({group_col}) * {IV_col}'
 
@@ -480,69 +480,3 @@ def point_ratio_scatter(ax, df, legend_pointsize = 7, legend_fontsize = 8):
     ax.spines['top'].set_visible(False)
 
     ax.set_aspect('equal')
-
-def error_plot(ax, df, colours, DV, x0, x1, num_bins = None, given_subtypes = ['T4','T5'],offsets = [-0.1,0.1], **kwargs):
-
-    if num_bins is None:
-        num_bins = x1 + 1
-
-    # Building observed histogram
-    bins = np.linspace(x0, x1, num_bins + 1)
-    # Corrected method for finding bin centers
-    x_values = (bins[:-1] + bins[1:]) / 2
-
-    for i in range(len(given_subtypes)):
-        s = given_subtypes[i]
-        c = colours[i]
-        x = x_values + offsets[i]
-        sub_df = df.loc[df.Type == s]
-        # use numpy for indexing, not pandas
-        ids = sub_df.ID.values
-        unique_ids = np.unique(ids)
-        values = sub_df[DV].values
-
-        data = np.zeros((len(unique_ids),num_bins))
-
-        for j in range(len(unique_ids)):
-            curr_id = unique_ids[j]
-            d = values[np.where(ids == curr_id)]
-            counts, _ = np.histogram(d, range = (x0,x1), bins = num_bins)
-            counts = counts / counts.sum()
-            data[j] = counts
-        
-        median, l, u = asymmetric_mad(data)
-        ax.errorbar(x, median, yerr = [l,u], fmt = 'o', label = s, color = c, **kwargs)
-
-def Section_decay_plot(
-        ax,
-        df,
-        groups = Types,
-        group_col = 'Type',
-        offsets = [-0.2,0.2],
-        colours = Type_colours,
-        x0 = 1,
-        x1 = 18,
-        isExternal = False
-    ):
-    depths = np.arange(x0,x1)
-
-    for i in range(len(groups)):
-
-        g = groups[i]
-        c = colours[i]
-        o = offsets[i]
-
-        sub_df = df.loc[(df[group_col] == g) & (df.isExternal == isExternal)]
-        medians = []
-        lower = []
-        upper = []
-
-        for i in depths:
-            d = sub_df.loc[sub_df.Depth == i,'Length'].values
-            m,l, u = asymmetric_mad(d)
-            medians.append(m)
-            lower.append(l)
-            upper.append(u)
-        
-        ax.errorbar(depths + o, medians, (lower, upper), fmt = 'o', color = c, label = g, ms = 2)
-

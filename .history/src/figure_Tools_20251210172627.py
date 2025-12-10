@@ -532,14 +532,14 @@ def Section_decay_plot(
         c = colours[i]
         o = offsets[i]
 
-        sub_df = df.loc[(df[group_col] == g) & (df.isExternal == isExternal)]
+        sub_df = df_edges.loc[(df[group_col] == g) & (df.isExternal == isExternal)]
         medians = []
         lower = []
         upper = []
 
         for i in depths:
             d = sub_df.loc[sub_df.Depth == i,'Length'].values
-            m,l, u = asymmetric_mad(d)
+            m,l, u = fT.asymmetric_mad(d)
             medians.append(m)
             lower.append(l)
             upper.append(u)

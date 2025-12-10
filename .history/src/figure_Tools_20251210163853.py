@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from matplotlib.lines import Line2D
 import statsmodels.formula.api as smf
 from .paper_ANOVA import ANOVAModel
 
@@ -261,33 +260,7 @@ def repeated_measures_PMF_df(ax, df, DV, group_col, groups, colours, x0, x1, num
         ax.plot(x_values, median, c = c, label = s, **line_kwargs)
         ax.fill_between(x_values, median - mad_low, median + mad_high, color = c, **fill_kwargs)
 
-def point_value_PMF_1darray(
-    ax,
-    array,
-    label,
-    x0,
-    x1,
-    num_bins,
-    num_bootstraps,
-    colour = None,
-    line_kwargs=dict(),
-    fill_kwargs=dict(),
-):
-    x, counts, l, u, pmfs = create_bootstrap_pmf(
-        array, x0=x0, x1=x1, num_bins=num_bins, n_bootstrap=num_bootstraps
-    )
-    # plot
-    if colour is None:
-        ax.plot(x, counts, label=label, **line_kwargs)
-        ax.fill_between(x, l, u, **fill_kwargs)    
-    else:
-        ax.plot(x, counts, c=colour, label=label, **line_kwargs)
-        ax.fill_between(x, l, u, color=colour, **fill_kwargs)
-    ax.set_xlim([x0, x1])
-
-    return ax
-
-def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs = dict(), point_kwargs = dict(), fill_kwargs = dict(), legend_kwargs = dict()):
+def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_kwargs, fill_kwargs, legend_kwargs):
     
     formula = f'{DV} ~ C({group_col}) * {IV_col}'
 
@@ -440,109 +413,89 @@ def angle_heatmap(
 
     return ax
 
-def point_ratio_scatter(ax, df, legend_pointsize = 7, legend_fontsize = 8):
-    # Upper bound of tree space
-    x_line = np.linspace(0, 350, 500)
-    y_line = (x_line - 1) / 2
+def generate_anisotropic_unit_vectors(n, scale=(1.0, 1.0, 1.0), orient_axis=None):
+    """
+    Generate anisotropic unit vectors on a sphere,
+    optionally oriented to a hemisphere.
 
-    # Plot the line
-    ax.plot(x_line, y_line, color="black", linestyle="--", label = "Upper Bound")
+    Parameters
+    ----------
+    n : int
+        Number of vectors.
+    scale : tuple of 3 floats
+        Scaling factors for (x, y, z).
+    orient_axis : str or None
+        Hemisphere to restrict to: one of ['+x','-x','+y','-y','+z','-z'].
 
-    # Shade the region between y=0 and the line
-    ax.fill_between(
-        x_line,
-        0,
-        y_line,
-        where=y_line >= 0,        # only shade where line is above x-axis
-        color="lightgray",
-        alpha=0.7,
-        label = "Tree Space"
+    Returns
+    -------
+    (n,3) ndarray of unit vectors.
+    """
+    # 1. isotropic unit vectors
+    X = np.random.normal(size=(n, 3))
+    X /= np.linalg.norm(X, axis=1, keepdims=True)
+
+    # 2. anisotropic scaling
+    X *= np.array(scale)
+
+    # 3. renormalize
+    X /= np.linalg.norm(X, axis=1, keepdims=True)
+
+    # 4. enforce hemisphere restriction
+    if orient_axis:
+        axis, sign = orient_axis[1].lower(), orient_axis[0]
+        idx = {"x": 0, "y": 1, "z": 2}[axis]
+        if sign == "-":
+            X = np.where(X[:, idx : idx + 1] > 0, -X, X)
+        else:  # "+"
+            X = np.where(X[:, idx : idx + 1] < 0, -X, X)
+
+    return X
+
+
+def generate_random_bifurication(n, df, n_type):
+    pc1 = df.loc[df_point.Type == n_type, "PC1"].mean()
+    pc2 = df.loc[df_point.Type == n_type, "PC2"].mean()
+    pc3 = df.loc[df_point.Type == n_type, "PC3"].mean()
+    s1 = np.sqrt(pc2 / pc1)
+    s2 = np.sqrt(pc3 / pc1)
+
+    vecs_parent = generate_anisotropic_unit_vectors(
+        n=n, scale=(1, s1, s2), orient_axis="-x"
     )
 
-    # for s in pt.Subtypes:
-    #     sub_df = df_point.loc[df_point.Subtype == s]
+    vecs_child1 = generate_anisotropic_unit_vectors(
+        n=n, scale=(1, s1, s2), orient_axis="+x"
+    )
+    vecs_child2 = generate_anisotropic_unit_vectors(
+        n=n, scale=(1, s1, s2), orient_axis="+x"
+    )
+    return vecs_parent, vecs_child1, vecs_child2
 
-    x = df.Vertices_numbers.values
-    y = df.Branch_number.values
 
-    scatter = ax.scatter(x,y, s = 2, c = '#D97C7C', alpha = 0.3, label = 'Dendites')
+def random_bifurication_sum(parent, child1, child2):
+    normals = gj.cross(parent, child1)
+    gamma = gj.angle(parent, child1, normals)
 
-    # Create a proxy artist for the legend with custom size
-    legend_scatter = Line2D([0], [0], marker='o', color='w', label='Dendrites',
-                            markerfacecolor='#D97C7C', markersize=legend_pointsize, alpha=0.7)
+    normals = gj.cross(parent, child2)
+    omega = gj.angle(parent, child2, normals)
 
-    ax.legend(handles=[legend_scatter] + ax.get_legend_handles_labels()[0][:-1],
-            frameon=False, loc='upper left', fontsize = legend_fontsize)
+    normals = gj.cross(child1, child2)
+    theta = gj.angle(child1, child2, normals)
 
-    ax.set_xlabel("Total Number of Nodes")
-    ax.set_ylabel("Total Number of Branching Nodes")
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
+    return gamma + omega + theta
 
-    ax.set_aspect('equal')
 
-def error_plot(ax, df, colours, DV, x0, x1, num_bins = None, given_subtypes = ['T4','T5'],offsets = [-0.1,0.1], **kwargs):
+# dihedral beta function
+def Dihedral_beta_random(p, c1, c2):
 
-    if num_bins is None:
-        num_bins = x1 + 1
+    # bisector of children
+    bisector = gj.normalize(c1 + c2)
+    # cross of children
+    cross = gj.cross(c1, c2)
+    # cross of cross and bisector
+    normal = gj.cross(bisector, cross)
+    # angle between bisector and parent from normal presepctive
+    dih_B = gj.angle(p, bisector, normal)
 
-    # Building observed histogram
-    bins = np.linspace(x0, x1, num_bins + 1)
-    # Corrected method for finding bin centers
-    x_values = (bins[:-1] + bins[1:]) / 2
-
-    for i in range(len(given_subtypes)):
-        s = given_subtypes[i]
-        c = colours[i]
-        x = x_values + offsets[i]
-        sub_df = df.loc[df.Type == s]
-        # use numpy for indexing, not pandas
-        ids = sub_df.ID.values
-        unique_ids = np.unique(ids)
-        values = sub_df[DV].values
-
-        data = np.zeros((len(unique_ids),num_bins))
-
-        for j in range(len(unique_ids)):
-            curr_id = unique_ids[j]
-            d = values[np.where(ids == curr_id)]
-            counts, _ = np.histogram(d, range = (x0,x1), bins = num_bins)
-            counts = counts / counts.sum()
-            data[j] = counts
-        
-        median, l, u = asymmetric_mad(data)
-        ax.errorbar(x, median, yerr = [l,u], fmt = 'o', label = s, color = c, **kwargs)
-
-def Section_decay_plot(
-        ax,
-        df,
-        groups = Types,
-        group_col = 'Type',
-        offsets = [-0.2,0.2],
-        colours = Type_colours,
-        x0 = 1,
-        x1 = 18,
-        isExternal = False
-    ):
-    depths = np.arange(x0,x1)
-
-    for i in range(len(groups)):
-
-        g = groups[i]
-        c = colours[i]
-        o = offsets[i]
-
-        sub_df = df.loc[(df[group_col] == g) & (df.isExternal == isExternal)]
-        medians = []
-        lower = []
-        upper = []
-
-        for i in depths:
-            d = sub_df.loc[sub_df.Depth == i,'Length'].values
-            m,l, u = asymmetric_mad(d)
-            medians.append(m)
-            lower.append(l)
-            upper.append(u)
-        
-        ax.errorbar(depths + o, medians, (lower, upper), fmt = 'o', color = c, label = g, ms = 2)
-
+    return dih_B

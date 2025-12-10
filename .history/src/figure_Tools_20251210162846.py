@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from matplotlib.lines import Line2D
 import statsmodels.formula.api as smf
 from .paper_ANOVA import ANOVAModel
 
@@ -261,33 +260,7 @@ def repeated_measures_PMF_df(ax, df, DV, group_col, groups, colours, x0, x1, num
         ax.plot(x_values, median, c = c, label = s, **line_kwargs)
         ax.fill_between(x_values, median - mad_low, median + mad_high, color = c, **fill_kwargs)
 
-def point_value_PMF_1darray(
-    ax,
-    array,
-    label,
-    x0,
-    x1,
-    num_bins,
-    num_bootstraps,
-    colour = None,
-    line_kwargs=dict(),
-    fill_kwargs=dict(),
-):
-    x, counts, l, u, pmfs = create_bootstrap_pmf(
-        array, x0=x0, x1=x1, num_bins=num_bins, n_bootstrap=num_bootstraps
-    )
-    # plot
-    if colour is None:
-        ax.plot(x, counts, label=label, **line_kwargs)
-        ax.fill_between(x, l, u, **fill_kwargs)    
-    else:
-        ax.plot(x, counts, c=colour, label=label, **line_kwargs)
-        ax.fill_between(x, l, u, color=colour, **fill_kwargs)
-    ax.set_xlim([x0, x1])
-
-    return ax
-
-def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs = dict(), point_kwargs = dict(), fill_kwargs = dict(), legend_kwargs = dict()):
+def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_kwargs, fill_kwargs, legend_kwargs):
     
     formula = f'{DV} ~ C({group_col}) * {IV_col}'
 
@@ -439,110 +412,3 @@ def angle_heatmap(
         cbar.set_label("Density", fontsize=10)
 
     return ax
-
-def point_ratio_scatter(ax, df, legend_pointsize = 7, legend_fontsize = 8):
-    # Upper bound of tree space
-    x_line = np.linspace(0, 350, 500)
-    y_line = (x_line - 1) / 2
-
-    # Plot the line
-    ax.plot(x_line, y_line, color="black", linestyle="--", label = "Upper Bound")
-
-    # Shade the region between y=0 and the line
-    ax.fill_between(
-        x_line,
-        0,
-        y_line,
-        where=y_line >= 0,        # only shade where line is above x-axis
-        color="lightgray",
-        alpha=0.7,
-        label = "Tree Space"
-    )
-
-    # for s in pt.Subtypes:
-    #     sub_df = df_point.loc[df_point.Subtype == s]
-
-    x = df.Vertices_numbers.values
-    y = df.Branch_number.values
-
-    scatter = ax.scatter(x,y, s = 2, c = '#D97C7C', alpha = 0.3, label = 'Dendites')
-
-    # Create a proxy artist for the legend with custom size
-    legend_scatter = Line2D([0], [0], marker='o', color='w', label='Dendrites',
-                            markerfacecolor='#D97C7C', markersize=legend_pointsize, alpha=0.7)
-
-    ax.legend(handles=[legend_scatter] + ax.get_legend_handles_labels()[0][:-1],
-            frameon=False, loc='upper left', fontsize = legend_fontsize)
-
-    ax.set_xlabel("Total Number of Nodes")
-    ax.set_ylabel("Total Number of Branching Nodes")
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-
-    ax.set_aspect('equal')
-
-def error_plot(ax, df, colours, DV, x0, x1, num_bins = None, given_subtypes = ['T4','T5'],offsets = [-0.1,0.1], **kwargs):
-
-    if num_bins is None:
-        num_bins = x1 + 1
-
-    # Building observed histogram
-    bins = np.linspace(x0, x1, num_bins + 1)
-    # Corrected method for finding bin centers
-    x_values = (bins[:-1] + bins[1:]) / 2
-
-    for i in range(len(given_subtypes)):
-        s = given_subtypes[i]
-        c = colours[i]
-        x = x_values + offsets[i]
-        sub_df = df.loc[df.Type == s]
-        # use numpy for indexing, not pandas
-        ids = sub_df.ID.values
-        unique_ids = np.unique(ids)
-        values = sub_df[DV].values
-
-        data = np.zeros((len(unique_ids),num_bins))
-
-        for j in range(len(unique_ids)):
-            curr_id = unique_ids[j]
-            d = values[np.where(ids == curr_id)]
-            counts, _ = np.histogram(d, range = (x0,x1), bins = num_bins)
-            counts = counts / counts.sum()
-            data[j] = counts
-        
-        median, l, u = asymmetric_mad(data)
-        ax.errorbar(x, median, yerr = [l,u], fmt = 'o', label = s, color = c, **kwargs)
-
-def Section_decay_plot(
-        ax,
-        df,
-        groups = Types,
-        group_col = 'Type',
-        offsets = [-0.2,0.2],
-        colours = Type_colours,
-        x0 = 1,
-        x1 = 18,
-        isExternal = False
-    ):
-    depths = np.arange(x0,x1)
-
-    for i in range(len(groups)):
-
-        g = groups[i]
-        c = colours[i]
-        o = offsets[i]
-
-        sub_df = df.loc[(df[group_col] == g) & (df.isExternal == isExternal)]
-        medians = []
-        lower = []
-        upper = []
-
-        for i in depths:
-            d = sub_df.loc[sub_df.Depth == i,'Length'].values
-            m,l, u = asymmetric_mad(d)
-            medians.append(m)
-            lower.append(l)
-            upper.append(u)
-        
-        ax.errorbar(depths + o, medians, (lower, upper), fmt = 'o', color = c, label = g, ms = 2)
-

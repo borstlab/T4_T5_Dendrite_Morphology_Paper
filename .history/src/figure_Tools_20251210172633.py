@@ -539,7 +539,7 @@ def Section_decay_plot(
 
         for i in depths:
             d = sub_df.loc[sub_df.Depth == i,'Length'].values
-            m,l, u = asymmetric_mad(d)
+            m,l, u = fT.asymmetric_mad(d)
             medians.append(m)
             lower.append(l)
             upper.append(u)
