@@ -1,7 +1,4 @@
 import numpy as np
-import pandas as pd
-import statsmodels.formula.api as smf
-from .paper_ANOVA import ANOVAModel
 
 # Colours and types
 
@@ -260,42 +257,227 @@ def repeated_measures_PMF_df(ax, df, DV, group_col, groups, colours, x0, x1, num
         ax.plot(x_values, median, c = c, label = s, **line_kwargs)
         ax.fill_between(x_values, median - mad_low, median + mad_high, color = c, **fill_kwargs)
 
-def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_kwargs, fill_kwargs, legend_kwargs):
+def fit_mixed_regression(x, y, group, ID=None, label = 'slope', ci=True):
+    """
+    Fit a mixed-effects regression (y ~ x * group, random intercepts for ID)
+    and return parameters for plotting per group.
     
-    formula = f'{DV} ~ C({group_col}) * {IV_col}'
-
-    # fit model - don't bootstrap effect sizes
-    model = ANOVAModel(df, formula)
-    model.fit(compute_ci = False);
-
-    slopes = model.simple_slopes(IV_col,group_col)
-    x_grid = np.linspace(df[IV_col].min(),df[IV_col].max(), 200)
-
-    for i in range(len(groups)):
-        g = groups[i]
-        c = colours[i]
-
-        intercept = slopes.loc[slopes[group_col] == g,'intercept'].values[0]
-        slope = slopes.loc[slopes[group_col] == g,'slope'].values[0]
-
-        # fitted y
+    Parameters
+    ----------
+    x, y : array-like
+        Data arrays of equal length.`
+    group : array-like of str
+        Group labels for each observation.
+    ID : array-like of int, optional
+        Subject identifiers for repeated measures. If None, assumes all 
+        observations are independent (creates unique IDs internally).
+    ci : bool, default True
+        Whether to compute confidence intervals for fitted lines.
+        
+    Returns
+    -------
+    dict with keys:
+        'group_fits': dict mapping group -> {x_fit, y_fit, slope, intercept, 
+                     ci_low, ci_high, label}
+        'model': fitted statsmodels MixedLMResults object
+        
+    Notes
+    -----
+    Uses mixed-effects modeling to account for repeated measures within subjects.
+    If no repeated measures exist (all IDs unique or ID=None), the model 
+    reduces to ordinary least squares but maintains consistent interface.
+    
+    The returned confidence intervals properly account for within-subject
+    correlation when repeated measures are present.
+    
+    Examples
+    --------
+    # Independent observations
+    result = fit_mixed_regression(x, y, group)
+    
+    # Repeated measures
+    result = fit_mixed_regression(x, y, group, ID=subject_ids)
+    
+    # Access results
+    for grp, fit in result['group_fits'].items():
+        plt.plot(fit['x_fit'], fit['y_fit'], label=fit['label'])
+        if ci:
+            plt.fill_between(fit['x_fit'], fit['ci_low'], fit['ci_high'], alpha=0.3)
+    """
+    # Handle missing ID parameter
+    if ID is None:
+        ID = np.arange(len(x))
+    
+    # Build dataframe for statsmodels
+    df = pd.DataFrame({
+        "x": np.asarray(x),
+        "y": np.asarray(y),
+        "group": np.asarray(group),
+        "ID": np.asarray(ID),
+    })
+    
+    # Fit mixed-effects model with random intercepts for ID
+    model = smf.mixedlm("y ~ x * group", df, groups=df["ID"])
+    result = model.fit(reml=True)
+    
+    # Generate fitted lines per group
+    group_fits = {}
+    x_grid = np.linspace(df["x"].min(), df["x"].max(), 200)
+    
+    for g in df["group"].unique():
+        # Extract slope and intercept from model coefficients
+        coef = result.params
+        intercept = coef["Intercept"] + coef.get(f"group[T.{g}]", 0.0)
+        slope = coef["x"] + coef.get(f"x:group[T.{g}]", 0.0)
+        
+        # Calculate fitted values manually
         y_fit = intercept + slope * x_grid
-        # slopes label
-        l = fr"{g}: $\beta$={slope:.3f}"
-        # line
-        ax.plot(x_grid, y_fit, label = l, c = c, **line_kwargs)
+        
+        if label == 'slope':
+            l = f"{g}: slope={slope:.3f}"
+        elif label == 'R2':
+            group_data = df[df["group"] == g]
+            y_pred_group = intercept + slope * group_data["x"]
+            ss_res = np.sum((group_data["y"] - y_pred_group) ** 2)
+            ss_tot = np.sum((group_data["y"] - group_data["y"].mean()) ** 2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
 
-        # ci
-        ci_low = intercept + slopes.loc[slopes[group_col] == g,'ci_low'].values[0] * x_grid
-        ci_high = intercept + slopes.loc[slopes[group_col] == g,'ci_high'].values[0] * x_grid
+            l = f"{g}: R²={r_squared:.3f}",
+        else:
+            l = g
 
-        ax.fill_between(
-            x_grid, ci_low, ci_high, color = c, **fill_kwargs
-        )
+        fit_dict = {
+            "x_fit": x_grid,
+            "y_fit": y_fit,
+            "slope": slope,
+            "intercept": intercept,
+            "label": l,
+        }
+        
+        if ci:
+            # Manual CI calculation for fixed effects predictions
+            # Build design matrix row by row to avoid indexing issues
+            cov_matrix = result.cov_params()
+            se_pred = []
+            
+            for x_val in x_grid:
+                # Start with base design: [intercept, x]
+                design_row = np.zeros(len(coef))
+                design_row[coef.index.get_loc("Intercept")] = 1.0
+                design_row[coef.index.get_loc("x")] = x_val
+                
+                # Add group effect if this group has a coefficient
+                group_coef_name = f"group[T.{g}]"
+                if group_coef_name in coef.index:
+                    design_row[coef.index.get_loc(group_coef_name)] = 1.0
+                
+                # Add interaction effect if this group has an interaction coefficient
+                interaction_coef_name = f"x:group[T.{g}]"
+                if interaction_coef_name in coef.index:
+                    design_row[coef.index.get_loc(interaction_coef_name)] = x_val
+                
+                # Calculate standard error for this prediction
+                se = np.sqrt(design_row.T @ cov_matrix @ design_row)
+                se_pred.append(se)
+            
+            se_pred = np.array(se_pred)
+            
+            # 95% confidence intervals
+            ci_low = y_fit - 1.96 * se_pred
+            ci_high = y_fit + 1.96 * se_pred
+            
+            fit_dict.update({
+                "ci_low": ci_low,
+                "ci_high": ci_high
+            })
+        
+        group_fits[g] = fit_dict
+    
+    return {"group_fits": group_fits, "model": result}
 
+# def regPlot(ax, df, groups, colours, IV, DV, ID = None, label = 'R2', pkwargs = dict(), lkwargs = dict(), leg_kwargs = dict()):
+    
+#     x = df[IV].values
+#     y = df[DV].values * 0.001
+#     group = df[groups].values
+#     ID = df['ID'].values
+#     results = fit_mixed_regression(x = x,y = y,group = group,ID = ID, label = label)
+
+#     ax.scatter(x,y, **pkwargs)
+
+#     i = 0
+#     for g, fit in results['group_fits'].items():
+#         c = colours[i]
+#         i += 1
+#         ax.plot(fit["x_fit"], fit['y_fit'], label = fit['label'], color = c, **lkwargs)
+#         if "ci_low" in fit:
+#             ax.fill_between(
+#                 fit['x_fit'], fit['ci_low'], fit['ci_high'], alpha = 0.2, color = c
+#             )
+#         ax.legend(loc = 'upper left', frameon = False, **leg_kwargs)
+
+#     ax.grid(False)
+
+# def depth_regression(ax, df, group, pkwargs=dict(), lkwargs=dict()):
+
+#     if group == "T4":
+#         c_inds = np.arange(4)
+#     else:
+#         c_inds = np.arange(4, 8)
+
+#     # subgroups = [group + i for i in ["a", "b", "c", "d"]]
+#     subgroup_colours = Subtype_colours[c_inds]
+#     sub_df = df.loc[
+#         (df.Type == group)
+#         & (df.Normalized_root_Distance != 0)
+#         & (df.Normalized_root_Distance != 1),
+#         ["ID", "Subtype", "Layer_Depth", "Normalized_root_Distance"],
+#     ]
+
+#     x = sub_df.Normalized_root_Distance.values
+#     y = sub_df.Layer_Depth
+#     group = sub_df.Subtype.values
+#     ID = sub_df.ID.values
+#     results = fit_mixed_regression(x, y, group, ID)
+
+#     # scatter of raw data
+#     ax.scatter(x, y, **pkwargs)
+
+#     # fitted lines + CIs
+#     i = 0
+#     for g, fit in results["group_fits"].items():
+#         c = subgroup_colours[i]
+#         i += 1
+#         ax.plot(fit["x_fit"], fit["y_fit"], label=fit["label"], color=c, **lkwargs)
+#         if "ci_low" in fit:
+#             ax.fill_between(
+#                 fit["x_fit"], fit["ci_low"], fit["ci_high"], alpha=0.2, color=c
+#             )
+
+#     ax.legend(loc="upper right", frameon=False)
+
+def regPlot(ax, df, DV_col, IV_col, ID_col, group_col, groups, colours, label, point_kwargs = dict(), line_kwargs = dict(), fill_kwargs = dict(), legend_kwargs = dict()):
+
+    # regression fit and results
     x = df[IV_col].values
-    y = df[DV].values
+    y = df[DV_col].values
+    group = df[group_col].values
+    ID = df[ID_col].values
+    results = fit_mixed_regression(x = x,y = y,group = group,ID = ID, label = label)
 
+    # plot scatter points
     ax.scatter(x,y, **point_kwargs)
 
+    # plot fit lines
+    for i in range(len(groups)):
+        group = groups[i]
+        fit = results['group_fits'][group]
+        c = colours[i]
+        ax.plot(fit["x_fit"], fit['y_fit'], label = fit['label'], color = c, **line_kwargs)
+        if "ci_low" in fit:
+            ax.fill_between(
+                fit['x_fit'], fit['ci_low'], fit['ci_high'], color = c, **fill_kwargs
+            )
+
+    # add legend
     ax.legend(**legend_kwargs)

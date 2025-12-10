@@ -1,7 +1,4 @@
 import numpy as np
-import pandas as pd
-import statsmodels.formula.api as smf
-from .paper_ANOVA import ANOVAModel
 
 # Colours and types
 
@@ -20,10 +17,6 @@ Subtype_colours = np.array(
         "#9467bd",
     ]
 )
-
-# suppress the all NaN warning from numpy
-import warnings
-warnings.filterwarnings("ignore", category=RuntimeWarning, message="All-NaN slice encountered")
 
 def add_scale_bar(
     ax, length=5, label="5 μm", location="lower right", offset=0.1, linewidth=2
@@ -145,21 +138,9 @@ def asymmetric_mad(data):
     # Where `above` is False, place NaN; otherwise, keep the deviation
     diffs_high = np.where(above, diffs, np.nan)
 
-    # Calculate the median of the deviations
-    with np.errstate(invalid = "ignore"):
-        mad_low = np.nanmedian(diffs_low, axis=0)
-        mad_high = np.nanmedian(diffs_high, axis=0)
-
-    # convert NaN values to 0
-    if data.ndim == 1:
-        if np.isnan(mad_low):
-            mad_low = 0
-        if np.isnan(mad_high):
-            mad_high = 0
-    else:
-
-        mad_low[np.isnan(mad_low)] = 0
-        mad_high[np.isnan(mad_high)] = 0
+    # Calculate the median of the deviations, ignoring the NaNs
+    mad_low = np.nanmedian(diffs_low, axis=0)
+    mad_high = np.nanmedian(diffs_high, axis=0)
 
     return median, mad_low, mad_high
 
@@ -259,43 +240,3 @@ def repeated_measures_PMF_df(ax, df, DV, group_col, groups, colours, x0, x1, num
 
         ax.plot(x_values, median, c = c, label = s, **line_kwargs)
         ax.fill_between(x_values, median - mad_low, median + mad_high, color = c, **fill_kwargs)
-
-def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_kwargs, fill_kwargs, legend_kwargs):
-    
-    formula = f'{DV} ~ C({group_col}) * {IV_col}'
-
-    # fit model - don't bootstrap effect sizes
-    model = ANOVAModel(df, formula)
-    model.fit(compute_ci = False);
-
-    slopes = model.simple_slopes(IV_col,group_col)
-    x_grid = np.linspace(df[IV_col].min(),df[IV_col].max(), 200)
-
-    for i in range(len(groups)):
-        g = groups[i]
-        c = colours[i]
-
-        intercept = slopes.loc[slopes[group_col] == g,'intercept'].values[0]
-        slope = slopes.loc[slopes[group_col] == g,'slope'].values[0]
-
-        # fitted y
-        y_fit = intercept + slope * x_grid
-        # slopes label
-        l = fr"{g}: $\beta$={slope:.3f}"
-        # line
-        ax.plot(x_grid, y_fit, label = l, c = c, **line_kwargs)
-
-        # ci
-        ci_low = intercept + slopes.loc[slopes[group_col] == g,'ci_low'].values[0] * x_grid
-        ci_high = intercept + slopes.loc[slopes[group_col] == g,'ci_high'].values[0] * x_grid
-
-        ax.fill_between(
-            x_grid, ci_low, ci_high, color = c, **fill_kwargs
-        )
-
-    x = df[IV_col].values
-    y = df[DV].values
-
-    ax.scatter(x,y, **point_kwargs)
-
-    ax.legend(**legend_kwargs)

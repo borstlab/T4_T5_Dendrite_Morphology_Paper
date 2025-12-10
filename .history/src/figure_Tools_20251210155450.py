@@ -265,7 +265,7 @@ def regPlot(ax, df, DV, IV_col, group_col, groups, colours, line_kwargs, point_k
     formula = f'{DV} ~ C({group_col}) * {IV_col}'
 
     # fit model - don't bootstrap effect sizes
-    model = ANOVAModel(df, formula)
+    model = pA.ANOVAModel(df, formula)
     model.fit(compute_ci = False);
 
     slopes = model.simple_slopes(IV_col,group_col)

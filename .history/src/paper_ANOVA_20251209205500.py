@@ -504,7 +504,7 @@ class ANOVAModel:
         Number of bootstrap replicates for confidence intervals
     ci_level : float, default=0.95
         Confidence level for intervals (e.g., 0.95 for 95% CI)
-    anova_type : int, default=3
+    anova_type : int, default=2
         Type of sums of squares (1, 2, or 3)
     strata_cols : list[str], optional
         Columns for stratified bootstrapping. If None, auto-detected
@@ -1593,7 +1593,7 @@ class ANOVAModel:
 
         if self.results_.is_mixed:
             raise NotImplementedError(
-                "I've not done or used this so tough"
+                "Simple slopes for mixed models not yet implemented."
             )
 
         if ci_level is None:
@@ -1647,7 +1647,6 @@ class ANOVAModel:
                 slope_standardized = slope * (sd_x / sd_y) if sd_y > 0 else np.nan
 
                 row = {
-                    "intercept": simple_model.params['const'],
                     "slope": slope,
                     "slope_std": slope_standardized,
                     "se": se,
@@ -1672,7 +1671,6 @@ class ANOVAModel:
 
         # Reorder columns
         col_order = categorical_vars + [
-            "intercept",
             "slope",
             "slope_std",
             "se",

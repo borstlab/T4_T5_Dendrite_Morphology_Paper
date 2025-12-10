@@ -1647,7 +1647,7 @@ class ANOVAModel:
                 slope_standardized = slope * (sd_x / sd_y) if sd_y > 0 else np.nan
 
                 row = {
-                    "intercept": simple_model.params['const'],
+                    "inter"
                     "slope": slope,
                     "slope_std": slope_standardized,
                     "se": se,
@@ -1672,7 +1672,6 @@ class ANOVAModel:
 
         # Reorder columns
         col_order = categorical_vars + [
-            "intercept",
             "slope",
             "slope_std",
             "se",

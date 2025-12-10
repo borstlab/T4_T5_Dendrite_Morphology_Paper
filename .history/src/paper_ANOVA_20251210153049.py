@@ -1672,7 +1672,7 @@ class ANOVAModel:
 
         # Reorder columns
         col_order = categorical_vars + [
-            "intercept",
+            "intercept"
             "slope",
             "slope_std",
             "se",
