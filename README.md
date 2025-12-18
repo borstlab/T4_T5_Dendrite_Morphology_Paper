@@ -117,9 +117,35 @@ Pickled `pandas.DataFrame` containing all metrics for single edges within dendri
 
 ## Notebooks
 
+### `ANOVA_analysis.ipynb`
+
+This notebook illustrates ANOVA/ANCOVA as used in the manuscript. This covers fitting OLS regression models and ANOVA/ANCOVA, as well as getting effect sizes wth bootstrapped confidence intervals.
+
+### `Figure_#.ipynb`
+
+Notebooks illustrating the generation of all graphs plotted within the manuscript, split by figure.
 
 ## src
 
+### `figure_Tools.py`
+
+Functions used for plotting various graphs used within the manuscripts,m used by `Figure_#` notebooks.
+
+### `paper_ANOVA.py`
+
+Statistical functions and classes for `ANOVA_analysis.ipynb`.
+
+### `Nearest_neighbours.py`
+
+Functions needed for plotting nearest neighbours and subtype agnostic nearest neighbour matching using max cardinality, as in figure 4 of the manuscript.
+
+### `Random_bifurcations.py`
+
+Functions for generating random bifurcations constrained along an axis, as well as sum and Dihedral angle $\beta$ as in figure 5 k and l.
+
+### `dist_fit.py`
+
+Distribution fitting module making use of the [FITTER](https://fitter.readthedocs.io/en/latest/) toolbox, which is built around scipy. used for figure 7.
 
 ## Usage
 
