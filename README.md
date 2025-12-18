@@ -16,7 +16,7 @@ This is the repository for the paper: "Population Morphology Implies a Common De
  
 > These results indicate that, despite forming in different neuropils, and serving distinct motion directions, T4 and T5 dendrites follow closely aligned morphological patterns. This suggests a shared developmental mechanism.
 
-## Repository Structure 
+## Repository Structure
 
 ```
 .
@@ -31,23 +31,94 @@ This is the repository for the paper: "Population Morphology Implies a Common De
 
 `src` contains `.py` files with functions needed to run the various analysis and plotting notebooks.
 
-### Data
+## Included Data
 
-#### `Neuron_ids.csv`
+### `Neuron_ids.csv`
+
+Table of neuron ids for finding each neuron in flywire, as well as there type/subtype designation and if dendrites where successfully annotated, required for inclusion in analysis.
+
+|Column       | Description| dtype|
+|-------------|------------|------|
+|Flywire_id   |Neuron flywire id|int|
+|Subtype      |Subtype, eg T4a, T5b|str|
+|Dendrite_used|True if the neuron was included in analysis|bool|
+
+### `Point_data.pkl`
+
+This file is a pickled pandas.DataFrame with all metrics used, and data values, which can be summarised as a single observation per neuron dendrite.
+
+|Column|Description|Units|dtype|
+|-|-|-|-|
+|ID|Neuron flywire id||int|
+|Type|Type [T4, T5]||str|
+|Subtype|Subtype, eg T4a, T5b||str|
+|Root_x|x coordinate of dendrite root||float|
+|Root_y|y coordinate of dendrite root||float|
+|Root_z|z coordinate of dendrite root||float|
+|Segment_Count|Number of sections within the reduced dendrite||int|
+|Total_Cable|Total dendrite cable length|$nm$|int|
+|Vertices_numbers|Number of branch and leaf nodes +1 (the root)||int|
+|External_edge_count|Number of terminating edges||int|
+|Internal_edge_count|Number of edges enclosed between root and branch points||int|
+|Leaf_number|Number of leaf nodes||int|
+|Branch_number|Number of (internal) branching nodes||int|
+|PC1|Variance explained by first principal component||float|
+|PC2|Variance explained by second principal component||float|
+|PC3|Variance explained by third principal component||float|
+|PC1_angle|Angle of first eigen-vector relative to global Dorsal-Ventral axes|radians|float|
+|Hull_volume|Volume of Convex hull fitted to dendrite points|$\mu m^3$|float|
+|Scaled_hull_volume|Hull volume scaled by neuropil layer volume||float|
+|Mean_segment_angle|Mean angle of sections relative to Anterior-Posterior axis|radians|float|
+|Segment_angle_var|Angular variance of section angles||float|
+
+### `Vertex_data.pkl`
+
+Pickled `pandas.DataFrame` containing all values for single nodes within dendrite tree-graph.
+
+|Column|Description|Units|dtype|
+|-|-|-|-|
+|ID|Neuron flywire id||int|
+|Type|Type [T4, T5]||str|
+|Subtype|Subtype, eg T4a, T5b||str|
+|Out_degree|out-degree of node||int|
+|Weighted_asymmetry|weighted partition asymmetry of node||float|
+|Euclidean_distance|Normalised Euclidean distance from the dendrite root, normalized by maximum distance in dendrite||float|
+|Layer_Depth|Normalized node depth in neuropil layer (Medulla layer 10 for T4, Lobula layer 1 for T5)||float|
+
+### `Edge_data.pkl`
+
+Pickled `pandas.DataFrame` containing all metrics for single edges within dendrites for all morphologies.
+
+|Column|Description|Units|dtype|
+|-|-|-|-|
+|ID|Neuron flywire id||int|
+|Type|Type [T4, T5]||str|
+|Subtype|Subtype, eg T4a, T5b||str|
+|isExternal|True if this is an external edge (terminating edge)||bool|
+|Edge_angle|Angle of section/edge relative to the global AP axis|radians|float|
+|Radial_angle_signed|Signed angle of edge relative to vector from the dendrite root|radians|float|
+|Depth|Depth of the edge/section within the tree graph (number of steps from the dendrite root)||int|
+|Length|Length of the dendrite section/edge|$\mu m$|float|
+|Length_varScaled|Length of section/edge in variance scaled dendrite||float|
+
+### `Bifurcation_data.pkl`
+
+|Column|Description|Units|dtype|
+|-|-|-|-|
+|ID|Neuron flywire id||int|
+|Type|Type [T4, T5]||str|
+|Subtype|Subtype, eg T4a, T5b||str|
+|Parent_angle_1|Angle between parent section and first child section $(\gamma)$|radians|float|
+|Parent_angle_2|Angle between parent section and second child section $(\omega)$|radians|float|
+|Child_angle|Angle between two child sections $(\theta)$|radians|float|
+|Angle_sum|Sum of $\gamma$, $\omega$, and $\theta$.|radians|float|
+|Dihedral_Beta|Bifurcation Dihedral angle $\beta$|radians|float|
 
 
-
-|Metric|File|dtype|source|
-|------|----|-----|------|
+## Notebooks
 
 
-### Notebooks
-
-
-### src
-
-## Datasets
-
+## src
 
 
 ## Usage
