@@ -1,0 +1,4 @@
+fitter>=1.5.0
+jax>=0.4.0
+jaxlib>=0.4.0
+git+https://github.com/NikDrummond/GeoJax.git
